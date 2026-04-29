@@ -1,0 +1,27 @@
+[package]
+name = "ipcalc"
+version = "0.1.0"
+description = "Native Slint IPv4 and IPv6 calculator"
+edition = "2024"
+build = "build.rs"
+
+[dependencies]
+slint = { version = "1.16.1", default-features = false, features = [
+    "std",
+    "backend-winit",
+    "renderer-software",
+    "compat-1-2",
+] }
+
+[build-dependencies]
+slint-build = "1.16.1"
+
+[target.'cfg(windows)'.build-dependencies]
+winresource = "0.1"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "z"
+panic = "abort"
+strip = "symbols"

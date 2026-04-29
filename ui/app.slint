@@ -1,0 +1,458 @@
+export struct OutputLine {
+    label: string,
+    value: string,
+    tone: int,
+    value-offset: float,
+}
+
+component SegmentButton inherits Rectangle {
+    in property <string> label;
+    in property <bool> active;
+    in property <brush> text-color;
+    in property <brush> muted-color;
+    in property <brush> active-background;
+    callback clicked();
+
+    height: 28px;
+    min-width: 56px;
+    border-radius: 4px;
+    background: active ? active-background : #00000000;
+    horizontal-stretch: 1;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 7px;
+        alignment: center;
+
+        Rectangle {
+            width: 8px;
+            height: 8px;
+            border-radius: 4px;
+            background: active ? #10b981 : muted-color;
+        }
+
+        Text {
+            text: label;
+            color: active ? text-color : muted-color;
+            font-size: 14px;
+            font-weight: active ? 600 : 500;
+            vertical-alignment: center;
+        }
+    }
+
+    TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+component IconButton inherits Rectangle {
+    in property <string> label;
+    in property <image> icon-source;
+    in property <brush> text-color;
+    in property <brush> control-border;
+    in property <brush> hover-background;
+    callback clicked();
+
+    height: 36px;
+    min-width: 82px;
+    border-radius: 6px;
+    border-width: 1px;
+    border-color: control-border;
+    background: touch-area.has-hover ? hover-background : #00000000;
+    horizontal-stretch: 0;
+
+    HorizontalLayout {
+        padding-left: 10px;
+        padding-right: 10px;
+        spacing: 8px;
+        alignment: center;
+
+        Image {
+            width: 16px;
+            height: 16px;
+            source: root.icon-source;
+            colorize: root.text-color;
+            image-fit: contain;
+        }
+
+        Text {
+            text: label;
+            color: text-color;
+            font-size: 14px;
+            font-weight: 500;
+            vertical-alignment: center;
+        }
+    }
+
+    touch-area := TouchArea {
+        width: parent.width;
+        height: parent.height;
+        clicked => {
+            root.clicked();
+        }
+    }
+}
+
+export component AppWindow inherits Window {
+    in-out property <bool> dark-mode: true;
+    in-out property <bool> ipv6-mode: false;
+    in-out property <string> input-value: "192.168.1.1/22";
+    in-out property <string> range-value: "1-20";
+    in property <[OutputLine]> output-lines;
+    in property <bool> has-error: false;
+    in property <string> error-message;
+
+    callback recalculate();
+    callback open-range-list();
+    callback select-version(bool);
+    callback toggle-theme();
+
+    private property <brush> page-background: dark-mode ? #0d1117 : #f6f8fb;
+    private property <brush> card-background: dark-mode ? #161b22 : #ffffff;
+    private property <brush> card-background-soft: dark-mode ? #111827 : #f1f5f9;
+    private property <brush> text-color: dark-mode ? #f0f6fc : #0f172a;
+    private property <brush> muted-color: dark-mode ? #8b949e : #64748b;
+    private property <brush> border-color: dark-mode ? #30363d : #d9e2ec;
+    private property <brush> hover-background: dark-mode ? #21262d : #e8eef5;
+    private property <brush> input-background: dark-mode ? #0d1117 : #ffffff;
+    private property <brush> input-border: dark-mode ? #4b535e : #a5abb4;
+
+    title: "IPCalc";
+    icon: @image-url("app-icon.svg");
+    default-font-family: "Segoe UI";
+    width: 760px;
+    height: 450px;
+    background: page-background;
+
+    Rectangle {
+        background: page-background;
+
+        VerticalLayout {
+            padding: 12px;
+            spacing: 12px;
+
+            Rectangle {
+                width: root.width - 24px;
+                height: 50px;
+
+                Rectangle {
+                    y: parent.height - 1px;
+                    width: parent.width;
+                    height: 1px;
+                    background: root.border-color;
+                }
+
+                Rectangle {
+                    x: 0px;
+                    y: 0px;
+                    width: 96px;
+                    height: parent.height - 1px;
+                    background: #00000000;
+                    VerticalLayout {
+                        spacing: 1px;
+
+                        Text {
+                            text: "Utility";
+                            color: root.muted-color;
+                            font-size: 12px;
+                            font-weight: 500;
+                        }
+
+                        Text {
+                            text: "IPCalc";
+                            color: root.text-color;
+                            font-size: 24px;
+                            font-weight: 600;
+                        }
+                    }
+                }
+
+                Text {
+                    x: 135px;
+                    y: 14px;
+                    width: right-controls.x - self.x - 16px;
+                    height: 24px;
+                    text: root.ipv6-mode ? "IPv6 network calculator" : "IPv4 network calculator";
+                    color: root.muted-color;
+                    font-size: 14px;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+
+                right-controls := Rectangle {
+                    x: parent.width - self.width;
+                    y: 7px;
+                    width: 244px;
+                    height: 36px;
+                    background: #00000000;
+
+                    Rectangle {
+                        x: 0px;
+                        y: 0px;
+                        width: 130px;
+                        height: 36px;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: root.border-color;
+                        background: root.card-background;
+
+                        HorizontalLayout {
+                            padding: 4px;
+                            spacing: 4px;
+
+                            SegmentButton {
+                                label: "IPv4";
+                                active: !root.ipv6-mode;
+                                text-color: root.text-color;
+                                muted-color: root.muted-color;
+                                active-background: root.page-background;
+                                clicked => {
+                                    root.select-version(false);
+                                }
+                            }
+
+                            SegmentButton {
+                                label: "IPv6";
+                                active: root.ipv6-mode;
+                                text-color: root.text-color;
+                                muted-color: root.muted-color;
+                                active-background: root.page-background;
+                                clicked => {
+                                    root.select-version(true);
+                                }
+                            }
+                        }
+                    }
+
+                    IconButton {
+                        x: 142px;
+                        y: 0px;
+                        width: 102px;
+                        label: root.dark-mode ? "Light" : "Dark";
+                        icon-source: root.dark-mode ? @image-url("sun.svg") : @image-url("moon.svg");
+                        text-color: root.text-color;
+                        control-border: root.border-color;
+                        hover-background: root.hover-background;
+                        clicked => {
+                            root.toggle-theme();
+                        }
+                    }
+                }
+            }
+
+            Rectangle {
+                border-radius: 8px;
+                border-width: 1px;
+                border-color: root.border-color;
+                background: root.card-background;
+
+                VerticalLayout {
+                    padding: 12px;
+                    spacing: 8px;
+
+                    VerticalLayout {
+                        height: 45px;
+                        vertical-stretch: 0;
+                        spacing: 6px;
+
+                        Text {
+                            text: root.ipv6-mode ? "IPv6 Network Calculator" : "IPv4 Network Calculator";
+                            color: root.text-color;
+                            font-size: 16px;
+                            font-weight: 600;
+                        }
+
+                        Text {
+                            text: root.ipv6-mode ? "Enter an IPv6 address with a CIDR prefix." : "Enter IPv4 as CIDR, address + subnet mask, or address + wildcard mask.";
+                            color: root.muted-color;
+                            font-size: 12px;
+                        }
+                    }
+
+                    VerticalLayout {
+                        height: 58px;
+                        vertical-stretch: 0;
+                        spacing: 6px;
+
+                        Rectangle {
+                            height: 16px;
+                            vertical-stretch: 0;
+                            background: #00000000;
+
+                            Text {
+                                x: 0px;
+                                y: 0px;
+                                width: parent.width - 116px;
+                                height: parent.height;
+                                text: "Network input";
+                                color: root.text-color;
+                                font-size: 14px;
+                                font-weight: 500;
+                                vertical-alignment: center;
+                            }
+
+                            Text {
+                                x: parent.width - 108px;
+                                y: 0px;
+                                width: 108px;
+                                height: parent.height;
+                                text: "IP range";
+                                color: root.text-color;
+                                font-size: 14px;
+                                font-weight: 500;
+                                vertical-alignment: center;
+                            }
+                        }
+
+                        Rectangle {
+                            height: 36px;
+                            vertical-stretch: 0;
+                            background: #00000000;
+
+                            Rectangle {
+                                x: 0px;
+                                y: 0px;
+                                width: parent.width - 116px;
+                                height: parent.height;
+                                border-radius: 6px;
+                                border-width: 1px;
+                                border-color: root.input-border;
+                                background: root.input-background;
+
+                                if root.input-value == "" : Text {
+                                    x: 11px;
+                                    y: 0px;
+                                    width: parent.width - 22px;
+                                    height: parent.height;
+                                    text: root.ipv6-mode ? "fd00::1/64" : "192.168.1.1/22";
+                                    color: root.muted-color;
+                                    font-size: 16px;
+                                    font-family: "Consolas";
+                                    vertical-alignment: center;
+                                }
+
+                                TextInput {
+                                    x: 10px;
+                                    y: 0px;
+                                    width: parent.width - 20px;
+                                    height: parent.height;
+                                    text <=> root.input-value;
+                                    font-size: 16px;
+                                    font-family: "Consolas";
+                                    color: root.text-color;
+                                    vertical-alignment: center;
+                                    edited => {
+                                        root.recalculate();
+                                    }
+                                    accepted => {
+                                        root.recalculate();
+                                    }
+                                }
+                            }
+
+                            Rectangle {
+                                x: parent.width - 108px;
+                                y: 0px;
+                                width: 108px;
+                                height: parent.height;
+                                border-radius: 6px;
+                                border-width: 1px;
+                                border-color: root.input-border;
+                                background: root.input-background;
+
+                                TextInput {
+                                    x: 10px;
+                                    y: 0px;
+                                    width: parent.width - 20px;
+                                    height: parent.height;
+                                    text <=> root.range-value;
+                                    font-size: 16px;
+                                    font-family: "Consolas";
+                                    color: root.text-color;
+                                    vertical-alignment: center;
+                                    accepted => {
+                                        root.open-range-list();
+                                    }
+                                }
+                            }
+                        }
+
+                    }
+
+                    if root.has-error : Rectangle {
+                        height: 40px;
+                        border-radius: 6px;
+                        border-width: 1px;
+                        border-color: #ef4444;
+                        background: root.dark-mode ? #2b1216 : #fff1f2;
+
+                        Text {
+                            x: 12px;
+                            width: parent.width - 24px;
+                            height: parent.height;
+                            text: root.error-message;
+                            color: root.dark-mode ? #fda4af : #be123c;
+                            font-size: 13px;
+                            font-weight: 600;
+                            vertical-alignment: center;
+                            overflow: elide;
+                        }
+                    }
+
+                    if !root.has-error : Rectangle {
+                        border-radius: 7px;
+                        border-width: 1px;
+                        border-color: root.dark-mode ? #242424 : root.border-color;
+                        background: root.dark-mode ? #050505 : #f8fafc;
+
+                        VerticalLayout {
+                            padding-left: 12px;
+                            padding-right: 12px;
+                            padding-top: 10px;
+                            padding-bottom: 10px;
+                            spacing: 0px;
+
+                            for line in root.output-lines : Rectangle {
+                                height: 20px;
+                                background: #00000000;
+
+                                Text {
+                                    x: 0px;
+                                    y: 0px;
+                                    width: parent.width;
+                                    height: parent.height;
+                                    text: line.label + ":";
+                                    color: root.dark-mode ? #cfcfcf : #334155;
+                                    font-family: "Consolas";
+                                    font-size: 16px;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                }
+
+                                Text {
+                                    x: line.value-offset * 1px;
+                                    y: 0px;
+                                    width: parent.width - self.x;
+                                    height: parent.height;
+                                    text: line.value;
+                                    color: line.tone == 0 ? (root.dark-mode ? #2296dd : #0369a1) : line.tone == 1 ? (root.dark-mode ? #d6c900 : #a16207) : line.tone == 2 ? (root.dark-mode ? #19b821 : #15803d) : line.tone == 3 ? (root.dark-mode ? #b72ac4 : #a21caf) : (root.dark-mode ? #28afbd : #0e7490);
+                                    font-family: "Consolas";
+                                    font-size: 16px;
+                                    font-weight: 600;
+                                    horizontal-alignment: left;
+                                    vertical-alignment: center;
+                                    overflow: elide;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
