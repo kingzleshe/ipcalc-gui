@@ -3,6 +3,10 @@ name = "ipcalc"
 version = "0.1.0"
 description = "Native Slint IPv4 and IPv6 calculator"
 edition = "2024"
+license = "MIT"
+readme = "README.md"
+keywords = ["ipcalc", "subnet", "ipv4", "ipv6", "slint"]
+categories = ["gui", "network-programming"]
 build = "build.rs"
 
 [dependencies]

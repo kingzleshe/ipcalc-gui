@@ -1,0 +1,65 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    name: Build Windows release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install Rust stable
+        run: rustup default stable
+
+      - name: Run tests
+        run: cargo test
+
+      - name: Package Windows build
+        shell: pwsh
+        run: .\scripts\package-windows.ps1
+
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ipcalc-gui-windows
+          path: dist/*.zip
+          if-no-files-found: error
+
+      - name: Create or update GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $tag = "${{ github.ref_name }}"
+          $releaseNotes = @"
+          ## IPCalc GUI $tag
+
+          Windows release build for IPCalc GUI.
+
+          ### Included
+
+          - ipcalc.exe
+          - README.md
+          - LICENSE
+          - CHANGELOG.md
+          "@
+
+          Set-Content -Path RELEASE_NOTES.md -Value $releaseNotes -Encoding UTF8
+
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -eq 0) {
+              gh release upload $tag dist/*.zip --clobber
+          } else {
+              gh release create $tag dist/*.zip --title "IPCalc GUI $tag" --notes-file RELEASE_NOTES.md
+          }
