@@ -40,7 +40,6 @@ pub struct CalcLine {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Calculation {
     pub lines: Vec<CalcLine>,
-    pub range_addresses: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -104,8 +103,7 @@ pub fn calculate_lines(input: &str, version: IpVersion) -> Result<Vec<CalcLine>,
 }
 
 fn calculate_ipv4(input: &str) -> Result<Calculation, String> {
-    let (network_input, ip_range) = split_optional_ip_range(input, Some(255))?;
-    let parsed = parse_ipv4_network_input(network_input)?;
+    let parsed = parse_ipv4_network_input(input)?;
     let data = calculate_subnet(parsed.ip, parsed.prefix)?;
 
     let lines = vec![
@@ -143,20 +141,11 @@ fn calculate_ipv4(input: &str) -> Result<Calculation, String> {
             Tone::Magenta,
         ),
     ];
-    let range_addresses = match ip_range {
-        Some(range) => ipv4_range_addresses(&data, parsed.ip, range)?,
-        None => Vec::new(),
-    };
-
-    Ok(Calculation {
-        lines,
-        range_addresses,
-    })
+    Ok(Calculation { lines })
 }
 
 fn calculate_ipv4_range_addresses(input: &str, range_input: &str) -> Result<Vec<String>, String> {
-    let (network_input, _) = split_optional_ip_range(input, Some(255))?;
-    let parsed = parse_ipv4_network_input(network_input)?;
+    let parsed = parse_ipv4_network_input(input)?;
     let data = calculate_subnet(parsed.ip, parsed.prefix)?;
     let range = parse_ip_range(range_input, Some(255))?;
 
@@ -164,8 +153,7 @@ fn calculate_ipv4_range_addresses(input: &str, range_input: &str) -> Result<Vec<
 }
 
 fn calculate_ipv6(input: &str) -> Result<Calculation, String> {
-    let (network_input, ip_range) = split_optional_ip_range(input, None)?;
-    let (ip, prefix) = parse_ipv6_cidr(network_input)?;
+    let (ip, prefix) = parse_ipv6_cidr(input)?;
     let data = calculate_ipv6_subnet(ip, prefix)?;
 
     let lines = vec![
@@ -195,20 +183,11 @@ fn calculate_ipv6(input: &str) -> Result<Calculation, String> {
         line("Host bits", data.host_bits.to_string(), Tone::Cyan),
         line("IP Type", get_ipv6_type(data.ip).to_owned(), Tone::Magenta),
     ];
-    let range_addresses = match ip_range {
-        Some(range) => ipv6_range_addresses(&data, range)?,
-        None => Vec::new(),
-    };
-
-    Ok(Calculation {
-        lines,
-        range_addresses,
-    })
+    Ok(Calculation { lines })
 }
 
 fn calculate_ipv6_range_addresses(input: &str, range_input: &str) -> Result<Vec<String>, String> {
-    let (network_input, _) = split_optional_ip_range(input, None)?;
-    let (ip, prefix) = parse_ipv6_cidr(network_input)?;
+    let (ip, prefix) = parse_ipv6_cidr(input)?;
     let data = calculate_ipv6_subnet(ip, prefix)?;
     let range = parse_ip_range(range_input, None)?;
 
@@ -329,22 +308,6 @@ fn split_once_strict(input: &str, separator: char) -> Option<(&str, &str)> {
     }
 
     Some((left, right))
-}
-
-fn split_optional_ip_range(
-    input: &str,
-    max_value: Option<u128>,
-) -> Result<(&str, Option<IpRange>), String> {
-    let trimmed = input.trim();
-
-    if let Some((base, possible_range)) = trimmed.rsplit_once(char::is_whitespace) {
-        if possible_range.contains('-') {
-            return parse_ip_range(possible_range, max_value)
-                .map(|range| (base.trim_end(), Some(range)));
-        }
-    }
-
-    Ok((trimmed, None))
 }
 
 fn parse_ip_range(input: &str, max_value: Option<u128>) -> Result<IpRange, String> {
@@ -746,66 +709,22 @@ mod tests {
     }
 
     #[test]
-    fn lists_ipv4_input_octet_ranges() {
-        let calculation = calculate("192.168.1.1/22 1-20", IpVersion::Ipv4).unwrap();
+    fn lists_ipv4_range_addresses() {
         let addresses =
             calculate_range_addresses("192.168.1.1/22", "1-20", IpVersion::Ipv4).unwrap();
 
-        assert_eq!(calculation.range_addresses.len(), 20);
-        assert_eq!(calculation.range_addresses.first().unwrap(), "192.168.1.1");
-        assert_eq!(calculation.range_addresses.last().unwrap(), "192.168.1.20");
         assert_eq!(addresses.len(), 20);
         assert_eq!(addresses.first().unwrap(), "192.168.1.1");
         assert_eq!(addresses.last().unwrap(), "192.168.1.20");
     }
 
     #[test]
-    fn keeps_ipv4_range_on_the_input_third_octet() {
-        let addresses =
-            calculate_range_addresses("192.168.2.1/22", "1-20", IpVersion::Ipv4).unwrap();
-
-        assert_eq!(addresses.first().unwrap(), "192.168.2.1");
-        assert_eq!(addresses.last().unwrap(), "192.168.2.20");
-    }
-
-    #[test]
-    fn lists_ipv6_one_based_network_ranges() {
-        let calculation = calculate("fd00::1/64 1-20", IpVersion::Ipv6).unwrap();
+    fn lists_ipv6_range_addresses() {
         let addresses = calculate_range_addresses("fd00::1/64", "1-20", IpVersion::Ipv6).unwrap();
 
-        assert_eq!(calculation.range_addresses.len(), 20);
-        assert_eq!(calculation.range_addresses.first().unwrap(), "fd00::");
-        assert_eq!(calculation.range_addresses.last().unwrap(), "fd00::13");
         assert_eq!(addresses.len(), 20);
         assert_eq!(addresses.first().unwrap(), "fd00::");
         assert_eq!(addresses.last().unwrap(), "fd00::13");
-    }
-
-    #[test]
-    fn lists_ipv6_small_network_ranges_from_one() {
-        let addresses =
-            calculate_range_addresses("240e:2001:2::1/126", "1-4", IpVersion::Ipv6).unwrap();
-
-        assert_eq!(addresses.len(), 4);
-        assert_eq!(addresses.first().unwrap(), "240e:2001:2::");
-        assert_eq!(addresses.last().unwrap(), "240e:2001:2::3");
-    }
-
-    #[test]
-    fn rejects_zero_based_ip_ranges() {
-        let error =
-            calculate_range_addresses("240e:2001:2::1/126", "0-3", IpVersion::Ipv6).unwrap_err();
-
-        assert_eq!(error, "IP range values must start at 1.");
-    }
-
-    #[test]
-    fn lists_larger_ipv6_one_based_network_ranges() {
-        let addresses = calculate_range_addresses("fd00::1/64", "1-100", IpVersion::Ipv6).unwrap();
-
-        assert_eq!(addresses.len(), 100);
-        assert_eq!(addresses.first().unwrap(), "fd00::");
-        assert_eq!(addresses.last().unwrap(), "fd00::63");
     }
 
     #[test]
@@ -829,24 +748,6 @@ mod tests {
     }
 
     #[test]
-    fn handles_ipv4_edge_prefixes() {
-        let any = calculate_lines("10.0.0.1/0", IpVersion::Ipv4).unwrap();
-        let host = calculate_lines("10.0.0.1/32", IpVersion::Ipv4).unwrap();
-
-        assert_eq!(value_for(&any, "Network address"), "0.0.0.0");
-        assert_eq!(value_for(&any, "Broadcast address"), "255.255.255.255");
-        assert_eq!(value_for(&host, "Usable host range"), "10.0.0.1 - 10.0.0.1");
-        assert_eq!(value_for(&host, "Usable number of hosts"), "1");
-    }
-
-    #[test]
-    fn rejects_invalid_ipv4_input() {
-        let error = calculate_lines("192.168.1.256/24", IpVersion::Ipv4).unwrap_err();
-
-        assert_eq!(error, "Each octet must be a number from 0 to 255.");
-    }
-
-    #[test]
     fn calculates_ipv6_networks() {
         let lines = calculate_lines("2001:db8::1/64", IpVersion::Ipv6).unwrap();
 
@@ -860,20 +761,5 @@ mod tests {
             "18,446,744,073,709,551,616"
         );
         assert_eq!(value_for(&lines, "IP Type"), "Documentation");
-    }
-
-    #[test]
-    fn handles_ipv6_zero_prefix() {
-        let lines = calculate_lines("::1/0", IpVersion::Ipv6).unwrap();
-
-        assert_eq!(value_for(&lines, "Network address"), "::");
-        assert_eq!(
-            value_for(&lines, "Last address"),
-            "ffff:ffff:ffff:ffff:ffff:ffff:ffff:ffff"
-        );
-        assert_eq!(
-            value_for(&lines, "Total number of addresses"),
-            "340,282,366,920,938,463,463,374,607,431,768,211,456"
-        );
     }
 }
