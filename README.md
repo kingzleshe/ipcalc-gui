@@ -16,9 +16,10 @@ The project is currently Windows-first. The core calculator logic is platform-ne
 - IPv4 and IPv6 calculator modes.
 - IPv4 input as CIDR, address + subnet mask, or address + wildcard mask.
 - IPv6 input as standard CIDR notation, including `::` shorthand.
-- Network address, broadcast address or last address, subnet mask, wildcard mask, usable host range, address count, and IP type output.
+- IPv4 network, broadcast, subnet mask, wildcard mask, usable host range, address counts, and IP type output.
+- IPv6 input address, network prefix, prefix length, first and last address, address counts, and IP type output.
 - Light and dark theme support.
-- Address range generation, for example `1-20`.
+- Address list generation: IPv4 ranges such as `1-20`, and IPv6 offsets such as `+20` or `-20`.
 - Native Slint GUI with no WebView dependency.
 
 ## Input Examples
@@ -29,7 +30,8 @@ The project is currently Windows-first. The core calculator logic is platform-ne
 | IPv4 subnet mask | `192.168.1.1 255.255.252.0` | Detects a contiguous subnet mask |
 | IPv4 wildcard mask | `192.168.1.1 0.0.3.255` | Detects a wildcard mask |
 | IPv6 CIDR | `2001:db8::1/64` | Calculates the IPv6 network block |
-| Address range | `1-20` | Press Enter in the IP range field to generate an address list |
+| IPv4 address range | `1-20` | Press Enter in the Range field to generate an address list |
+| IPv6 address offset | `+20` / `-20` | Press Enter in the Offset field to generate an address list from the input address |
 
 ## Requirements
 

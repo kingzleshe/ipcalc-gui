@@ -2,6 +2,7 @@ use std::net::Ipv6Addr;
 use std::str::FromStr;
 
 const UINT32_MAX: u32 = u32::MAX;
+const MAX_GENERATED_ADDRESSES: u128 = 65_536;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum IpVersion {
@@ -15,7 +16,6 @@ pub enum Tone {
     Yellow,
     Green,
     Magenta,
-    Cyan,
 }
 
 impl Tone {
@@ -25,7 +25,6 @@ impl Tone {
             Self::Yellow => 1,
             Self::Green => 2,
             Self::Magenta => 3,
-            Self::Cyan => 4,
         }
     }
 }
@@ -72,11 +71,21 @@ struct Ipv4Subnet {
 struct Ipv6Subnet {
     ip: u128,
     prefix: u8,
-    mask: u128,
     network: u128,
     last_address: u128,
     total_addresses: String,
-    host_bits: u16,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum IpCount {
+    Forward(u128),
+    Backward(u128),
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum Direction {
+    Forward,
+    Backward,
 }
 
 pub fn calculate(input: &str, version: IpVersion) -> Result<Calculation, String> {
@@ -157,30 +166,21 @@ fn calculate_ipv6(input: &str) -> Result<Calculation, String> {
     let data = calculate_ipv6_subnet(ip, prefix)?;
 
     let lines = vec![
+        line("Input address", format_ipv6(data.ip), Tone::Blue),
         line(
             "CIDR notation",
             format!("{}/{}", format_ipv6(data.network), data.prefix),
             Tone::Blue,
         ),
-        line("Network address", format_ipv6(data.network), Tone::Blue),
-        line("Last address", format_ipv6(data.last_address), Tone::Blue),
+        line("Network prefix", format_ipv6(data.network), Tone::Blue),
         line("Prefix length", format!("/{}", data.prefix), Tone::Yellow),
-        line("Network mask", format_ipv6(data.mask), Tone::Yellow),
-        line(
-            "Address range",
-            format!(
-                "{} - {}",
-                format_ipv6(data.network),
-                format_ipv6(data.last_address)
-            ),
-            Tone::Green,
-        ),
+        line("First address", format_ipv6(data.network), Tone::Green),
+        line("Last address", format_ipv6(data.last_address), Tone::Green),
         line(
             "Total number of addresses",
             data.total_addresses.clone(),
             Tone::Green,
         ),
-        line("Host bits", data.host_bits.to_string(), Tone::Cyan),
         line("IP Type", get_ipv6_type(data.ip).to_owned(), Tone::Magenta),
     ];
     Ok(Calculation { lines })
@@ -189,7 +189,7 @@ fn calculate_ipv6(input: &str) -> Result<Calculation, String> {
 fn calculate_ipv6_range_addresses(input: &str, range_input: &str) -> Result<Vec<String>, String> {
     let (ip, prefix) = parse_ipv6_cidr(input)?;
     let data = calculate_ipv6_subnet(ip, prefix)?;
-    let range = parse_ip_range(range_input, None)?;
+    let range = parse_ip_count(range_input)?;
 
     ipv6_range_addresses(&data, range)
 }
@@ -324,6 +324,34 @@ fn parse_ip_range(input: &str, max_value: Option<u128>) -> Result<IpRange, Strin
     Ok(IpRange { start, end })
 }
 
+fn parse_ip_count(input: &str) -> Result<IpCount, String> {
+    let trimmed = input.trim();
+    let (direction, count_input) = if let Some(count_input) = trimmed.strip_prefix('-') {
+        (Direction::Backward, count_input)
+    } else if let Some(count_input) = trimmed.strip_prefix('+') {
+        (Direction::Forward, count_input)
+    } else {
+        (Direction::Forward, trimmed)
+    };
+
+    if count_input.is_empty() || !count_input.bytes().all(|byte| byte.is_ascii_digit()) {
+        return Err("IPv6 address count must be a decimal number.".to_owned());
+    }
+
+    let count: u128 = count_input
+        .parse()
+        .map_err(|_| "IPv6 address count must be a decimal number.".to_owned())?;
+
+    if count == 0 {
+        return Err("IPv6 address count must start at 1.".to_owned());
+    }
+
+    Ok(match direction {
+        Direction::Forward => IpCount::Forward(count),
+        Direction::Backward => IpCount::Backward(count),
+    })
+}
+
 fn parse_ip_range_value(input: &str, max_value: Option<u128>) -> Result<u128, String> {
     let trimmed = input.trim();
 
@@ -339,10 +367,10 @@ fn parse_ip_range_value(input: &str, max_value: Option<u128>) -> Result<u128, St
         return Err("IP range values must start at 1.".to_owned());
     }
 
-    if let Some(max_value) = max_value {
-        if value > max_value {
-            return Err(format!("IP range values must be from 1 to {max_value}."));
-        }
+    if let Some(max_value) = max_value
+        && value > max_value
+    {
+        return Err(format!("IP range values must be from 1 to {max_value}."));
     }
 
     Ok(value)
@@ -577,19 +605,33 @@ fn calculate_ipv6_subnet(ip: u128, prefix: u8) -> Result<Ipv6Subnet, String> {
     Ok(Ipv6Subnet {
         ip,
         prefix,
-        mask,
         network,
         last_address,
         total_addresses: pow2_decimal(host_bits as u32),
-        host_bits,
     })
 }
 
-fn ipv6_range_addresses(data: &Ipv6Subnet, range: IpRange) -> Result<Vec<String>, String> {
-    let mut addresses = Vec::with_capacity(range_capacity(range)?);
+fn ipv6_range_addresses(data: &Ipv6Subnet, count: IpCount) -> Result<Vec<String>, String> {
+    let (start, count) = match count {
+        IpCount::Forward(count) => (data.ip, count),
+        IpCount::Backward(count) => (
+            data.ip.checked_sub(count - 1).ok_or_else(|| {
+                "The requested IPv6 IP range is outside the current network.".to_owned()
+            })?,
+            count,
+        ),
+    };
+    if count > MAX_GENERATED_ADDRESSES {
+        return Err(format!(
+            "IP range is too large to generate. Limit is {MAX_GENERATED_ADDRESSES} addresses."
+        ));
+    }
+    let capacity =
+        usize::try_from(count).map_err(|_| "IP range is too large to generate.".to_owned())?;
+    let mut addresses = Vec::with_capacity(capacity);
 
-    for index in range.start..=range.end {
-        let candidate = data.network.checked_add(index - 1).ok_or_else(|| {
+    for offset in 0..count {
+        let candidate = start.checked_add(offset).ok_or_else(|| {
             "The requested IPv6 IP range is outside the current network.".to_owned()
         })?;
 
@@ -720,11 +762,31 @@ mod tests {
 
     #[test]
     fn lists_ipv6_range_addresses() {
-        let addresses = calculate_range_addresses("fd00::1/64", "1-20", IpVersion::Ipv6).unwrap();
+        let addresses = calculate_range_addresses("fd00::1/64", "+20", IpVersion::Ipv6).unwrap();
 
         assert_eq!(addresses.len(), 20);
-        assert_eq!(addresses.first().unwrap(), "fd00::");
-        assert_eq!(addresses.last().unwrap(), "fd00::13");
+        assert_eq!(addresses.first().unwrap(), "fd00::1");
+        assert_eq!(addresses.last().unwrap(), "fd00::14");
+    }
+
+    #[test]
+    fn lists_ipv6_range_addresses_before_input() {
+        let addresses = calculate_range_addresses("fd00::14/64", "-20", IpVersion::Ipv6).unwrap();
+
+        assert_eq!(addresses.len(), 20);
+        assert_eq!(addresses.first().unwrap(), "fd00::1");
+        assert_eq!(addresses.last().unwrap(), "fd00::14");
+    }
+
+    #[test]
+    fn rejects_oversized_ipv6_range_addresses() {
+        let error = calculate_range_addresses("fd00::1/64", "+65537", IpVersion::Ipv6)
+            .expect_err("range is rejected");
+
+        assert_eq!(
+            error,
+            "IP range is too large to generate. Limit is 65536 addresses."
+        );
     }
 
     #[test]
@@ -751,7 +813,11 @@ mod tests {
     fn calculates_ipv6_networks() {
         let lines = calculate_lines("2001:db8::1/64", IpVersion::Ipv6).unwrap();
 
+        assert_eq!(value_for(&lines, "Input address"), "2001:db8::1");
         assert_eq!(value_for(&lines, "CIDR notation"), "2001:db8::/64");
+        assert_eq!(value_for(&lines, "Network prefix"), "2001:db8::");
+        assert_eq!(value_for(&lines, "Prefix length"), "/64");
+        assert_eq!(value_for(&lines, "First address"), "2001:db8::");
         assert_eq!(
             value_for(&lines, "Last address"),
             "2001:db8::ffff:ffff:ffff:ffff"
@@ -761,5 +827,23 @@ mod tests {
             "18,446,744,073,709,551,616"
         );
         assert_eq!(value_for(&lines, "IP Type"), "Documentation");
+    }
+
+    #[test]
+    fn normalizes_ipv6_input_address() {
+        let lines = calculate_lines(
+            "240E:0108:11E8:0001:0104:001C:11.64.30.207/96",
+            IpVersion::Ipv6,
+        )
+        .unwrap();
+
+        assert_eq!(
+            value_for(&lines, "Input address"),
+            "240e:108:11e8:1:104:1c:b40:1ecf"
+        );
+        assert_eq!(
+            value_for(&lines, "CIDR notation"),
+            "240e:108:11e8:1:104:1c::/96"
+        );
     }
 }
