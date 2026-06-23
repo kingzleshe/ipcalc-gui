@@ -11,6 +11,16 @@ IPCalc GUI is a native Windows IP subnet calculator GUI for IPv4 and IPv6, built
 
 The project is currently Windows-first. The core calculator logic is platform-neutral, but the range list feature opens a temporary text file with Windows Notepad.
 
+## Screenshots
+
+### IPv4 Calculator
+
+![IPCalc GUI IPv4 subnet calculator screenshot](docs/images/ipcalc-gui-ipv4.png)
+
+### IPv6 Calculator
+
+![IPCalc GUI IPv6 subnet calculator screenshot](docs/images/ipcalc-gui-ipv6.png)
+
 ## Features
 
 - IPv4 and IPv6 calculator modes.
