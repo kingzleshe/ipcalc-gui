@@ -7,7 +7,7 @@
 ![Slint 1.16.1](https://img.shields.io/badge/slint-1.16.1-blue.svg)
 ![Windows](https://img.shields.io/badge/windows-supported-0078d4.svg)
 
-IPCalc GUI is a native desktop IP calculator built with Rust and Slint. It is designed for quick subnet checks, address planning, and day-to-day network troubleshooting without requiring a browser or WebView.
+IPCalc GUI is a native Windows IP subnet calculator GUI for IPv4 and IPv6, built with Rust and Slint. It is designed for CIDR, subnet mask, wildcard mask, address range, usable host, and network planning checks without requiring a browser or WebView.
 
 The project is currently Windows-first. The core calculator logic is platform-neutral, but the range list feature opens a temporary text file with Windows Notepad.
 
@@ -48,7 +48,7 @@ rustup default stable
 ## Run Locally
 
 ```powershell
-git clone <repo-url>
+git clone https://github.com/kingzleshe/ipcalc-gui.git
 cd ipcalc-gui
 cargo run
 ```
